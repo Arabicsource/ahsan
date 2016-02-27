@@ -18,5 +18,26 @@ its website.
 
 ##### TODO 
 
+- [ ]   Scrape shamela.ws ever interval period (set by flags)
+- [ ]   Store urls in json format
+- [ ]   Upon addition of new urls (of books) trigger an event for another service to poll the json file
 - [ ]   Check shamela.ws for new books 
 - [ ]   todo ....  
+
+
+
+
+-------------------------------------------------------------------
+
+#### AUTHORS
+
+* aboo "shaybix" shayba
+
+
+
+#### CONTRIBUTORS
+
+
+
+
+
