@@ -44,7 +44,7 @@ func (c *Crawler) run() {
 		return
 	}
 	log.Println("Compiling regex")
-	re := regexp.MustCompile(string(`/href="(\/index.php\/book\/\d+)"/g`))
+	re := regexp.MustCompile(`"\/index.php\/book\/\d+"`)
 	log.Println("Printing out the results....")
 	fmt.Println(re.FindAllString(string(bytes), -1))
 }
