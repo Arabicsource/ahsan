@@ -1,8 +1,12 @@
 package main
 
-import "flag"
+import (
+	"flag"
+	"log"
+)
 
 var interval = flag.Float64("interval", 12, "Default 12 Hours")
+var method = flag.String("method", "update", "update or scrape")
 
 // Book to be downloaded from the shamela website
 type Book struct {
@@ -24,6 +28,19 @@ type Link struct {
 
 // Basic http server listening on port 8000
 func main() {
+	flag.Parse()
+
+	switch *method {
+
+	default:
+		log.Println("invalid method specified!")
+		return
+	case "update":
+		break
+	case "scrape":
+		break
+	}
+
 	// Create new Crawler
 	c := new(Crawler)
 
