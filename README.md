@@ -11,8 +11,8 @@ carry it out.
 
 #### Functionality
 ------------------
-Parsing web pages for download links since Shamela.ws has no public API for new content uploaded on 
-its website. 
+Parsing web pages for download links since Shamela.ws has no public API for new 
+content uploaded on its website. 
 
 
 
@@ -20,12 +20,18 @@ its website.
 
 - [ ]   Scrape shamela.ws ever interval period (set by flags)
 - [ ]   Store urls in json format
-- [ ]   Upon addition of new urls (of books) trigger an event for another service to poll the json file
+- [ ]   new urls (of books) trigger an event for another service to poll the json file
 - [ ]   Check shamela.ws for new books 
-- [ ]   todo ....  
 
 
+##### FIXME
 
+- [ ]   refactor the regex code and have it as its own package to be imported.
+
+This could be similar to python's BeautifulSoup (bs4), and check it out for guide. However, 
+bear in mind the purpose behind it is ease of use and not to write a bloated package that
+tries to do everything. Focus on main purpose of Ahsan and write the package to enable yourself 
+to pursue that objective.  
 
 -------------------------------------------------------------------
 
