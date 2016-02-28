@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -35,6 +34,16 @@ func (c *Crawler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+func (c *Crawler) init() (*os.File, error) {
+	file, err := os.Create("urls.json")
+	if err != nil {
+		return nil, err
+	}
+
+	return file, nil
+}
+
+// run ...
 func (c *Crawler) run() {
 	// This code in here needs to run in its own for loop
 
@@ -81,17 +90,35 @@ func (c *Crawler) run() {
 
 // Crawl starts to crawl through a given urls extracting individual book urls
 func (c *Crawler) Crawl(urls []string) {
-	// TODO: Go through all pages and crawl and pull out urls of the books
-	for _, url := range urls {
-		fmt.Println("http://www.shamela.ws" + url)
+	// init
+	file, err := c.init()
+	defer file.Close()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	ok, err := c.Save(file, urls)
+	if !ok {
+		log.Println("Could not save the urls to the file")
+		return
 	}
 }
 
 // Save will save each link to the top of the file
-func (c *Crawler) Save(file *os.File, url string) (ok bool, err error) {
+func (c *Crawler) Save(file *os.File, urls []string) (ok bool, err error) {
 
-	// save the link to the top of the file and return ok.
-	return true, nil
+	ok = true
+	// TODO: Go through all pages and crawl and pull out urls of the books
+	for _, url := range urls {
+		// store each url into the file
+		_, err := file.WriteString(url + "\n")
+		if err != nil {
+			ok = false
+			return ok, err
+		}
+	}
+
+	return ok, nil
 }
 
 //New inits a new Tag (Html Element)
@@ -113,9 +140,12 @@ func (t *Tag) Compile(name string) (*regexp.Regexp, bool) {
 		re = nil
 
 		return re, ok
+
+	// Do likewise for other HTML elements when you refactor the code
 	case "a":
+		// Looking for just about any anchor element
 		log.Println("Instantiating for anchor element!")
-		re = regexp.MustCompile(`<a\s\.*>\.*<\/a>`)
+		re = regexp.MustCompile(`<a.*</a>`)
 		ok = true
 		return re, ok
 	}
