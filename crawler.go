@@ -9,12 +9,12 @@ import (
 )
 
 type Crawler struct {
-	urls []string
+	Books []string
+	Pages []string
 }
 
 type Tag struct {
 	Name  string
-	Count int
 	Class []string
 	Id    string
 	Text  string
@@ -23,8 +23,10 @@ type Tag struct {
 //ServeHTTP handling incoming requests
 func (c *Crawler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	// handle any incoming requests
+	// TODO: Future functionality for inter-services communication
 
+	// handle any incoming requests
+	return
 }
 
 func (c *Crawler) run() {
@@ -43,12 +45,21 @@ func (c *Crawler) run() {
 		log.Println(err)
 		return
 	}
+
+	// TODO: Refactor the code so that the regex matches an entire element
+	// and returns a list of elements.
 	log.Println("Compiling regex")
 	re := regexp.MustCompile(`"\/index.php\/book\/\d+"`)
 	log.Println("Printing out the results....")
 	fmt.Println(re.FindAllString(string(bytes), -1))
 }
 
+// Crawl starts to crawl through a given urls extracting individual book urls
+func (c *Crawler) Crawl(urls []string) {
+	// TODO: Go through all pages and crawl and pull out urls of the books
+}
+
+//New inits a new Tag (Html Element)
 func (t *Tag) New(name string) *Tag {
 
 	t.Name = name
