@@ -5,8 +5,8 @@ import (
 	"log"
 )
 
-var interval = flag.Float64("interval", 12, "Default 12 Hours")
-var method = flag.String("method", "update", "update or scrape")
+var interval = flag.Duration("interval", 12, "Default 12 Hours")
+var method = flag.String("method", "scrape", "update or scrape")
 
 // Book to be downloaded from the shamela website
 type Book struct {
