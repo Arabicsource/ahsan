@@ -8,6 +8,10 @@ have been published by shamela.ws and then download it. Ahsan will be responsibl
 the job of extracting and indexing the file's content on to the queue for another service to 
 carry it out.
 
+As Ahsan currently stands it may be broken part into further smaller parts. The web crawling part 
+being put in a seperate package, and functioning as an imported package independent of Ahsan and other
+Maktabah services. However, this may very well be delayed for a much later period in the project.
+
 
 #### Functionality
 ------------------
