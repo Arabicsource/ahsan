@@ -20,7 +20,9 @@ type Status struct {
 }
 
 func (s *Status) Poll() error {
+	// TODO: poll file and see if there any new lines, and return status
 
+	// open file for reading
 	f, err := os.Open("urls.json")
 	defer f.Close()
 	//f, err := ioutil.ReadFile("urls.json")
