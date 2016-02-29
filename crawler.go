@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -10,18 +11,42 @@ import (
 )
 
 type Crawler struct {
-	books      []string
-	pages      []string
+	// slice of strings consisting of direct urls for the books
+	// later to be used for download
+	books []string
+
+	// slice of strings consisting of the urls for the pages of the individual books
+	// which holds information for each book and link to pdf if it exists
+	pages []string
+
+	// slice of strings of the urls for the categories
 	categories []string
+
+	// method to be used, which at the moment consists of either scraping
+	// the entire website or updating
+	method string
+
+	// which url to get. This may be updated through the code as the crawler
+	// gets a different HTML document each time.
+	url string
 }
 
 // Tag represents the HTML element that will be parsed and pulled from
 // html document
 type Tag struct {
-	Name  string
+	// Name of the HTML element like 'div' and 'a'.
+	Name string
+
+	// slice of the class names, and it may be empty if the element has no classes.
 	Class []string
-	Id    string
-	Text  string
+
+	// String consisting of the ID of a particular element, to be used by the regex.
+	Id string
+
+	// Text inside the element
+	Text string
+
+	// the Regex for that particular element to be parsed.
 	Regex *regexp.Regexp
 }
 
@@ -47,8 +72,20 @@ func (c *Crawler) init() (*os.File, error) {
 func (c *Crawler) run() {
 	// This code in here needs to run in its own for loop
 
+	//method of crawling
+	c.method = *method
+
+	switch c.method {
+
+	default:
+		c.url = "http://www.shamela.ws"
+		break
+	case "scrape":
+		c.url = "http://www.shamela.ws/index.php/categories"
+	}
+
 	client := new(http.Client)
-	resp, err := client.Get("http://www.shamela.ws")
+	resp, err := client.Get(c.url)
 	if err != nil {
 
 		log.Println(err)
@@ -76,6 +113,7 @@ func (c *Crawler) run() {
 	if !ok {
 		log.Println("Could not compile the regex properly")
 	}
+
 	// Checking if there is a match
 	// and if there is a match we get a []string
 	c.books, err = t.Match(t.Regex, string(bytes))
@@ -83,8 +121,11 @@ func (c *Crawler) run() {
 		log.Println(err)
 		// time.Sleep(interval)
 	}
+
+	// Crawl through the urls of the books
 	c.Crawl(c.books)
 	// time.Sleep(interval)
+	fmt.Println(c.method)
 
 }
 
