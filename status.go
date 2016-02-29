@@ -1,5 +1,11 @@
 package main
 
+import (
+	"bufio"
+	"fmt"
+	"os"
+)
+
 // poll json file checking for new urls and if such new urls exist, extract the url
 // and pass it on to the services responsible for:
 //
@@ -13,9 +19,19 @@ type Status struct {
 	Exists bool
 }
 
-func (s *Status) Poll() (bool, error) {
+func (s *Status) Poll() error {
 
-	// Put code here for checking file if indeed there are new urls
+	f, err := os.Open("urls.json")
+	defer f.Close()
+	//f, err := ioutil.ReadFile("urls.json")
+	if err != nil {
+		return err
+	}
 
-	return true, nil
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+
+		fmt.Println(scanner.Text())
+	}
+	return nil
 }
