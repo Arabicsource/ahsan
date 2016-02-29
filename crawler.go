@@ -122,8 +122,21 @@ func (c *Crawler) run() {
 		// time.Sleep(interval)
 	}
 
-	// Crawl through the urls of the books
-	c.Crawl(c.books)
+	if c.method == "scrape" {
+
+		// Crawl through the urls of the books
+		c.Crawl(c.books)
+	}
+
+	if c.method == "update" {
+		s := new(Status)
+		err := s.Poll()
+		if err != nil {
+			log.Println(err)
+
+		}
+	}
+
 	// time.Sleep(interval)
 	fmt.Println(c.method)
 
