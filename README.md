@@ -47,7 +47,3 @@ to pursue that objective.
 
 #### CONTRIBUTORS
 
-
-
-
-
