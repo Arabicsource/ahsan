@@ -28,6 +28,7 @@ type Link struct {
 
 // Basic http server listening on port 8000
 func main() {
+	// Parse the flags
 	flag.Parse()
 
 	switch *method {

@@ -42,7 +42,7 @@ func (c *Crawler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (c *Crawler) init() (*os.File, error) {
 
-	//
+	// create urls.json file
 	file, err := os.Create("urls.json")
 	if err != nil {
 		return nil, err
@@ -58,20 +58,22 @@ func (c *Crawler) run() {
 	var err error
 	for {
 
+		// set the method of crawling
+		// and the starting point (url)
 		c.Method()
 
 		// create new Tag
 		t := new(Tag)
 		t = t.New("a")
 
-		c.books, err = c.Parse(t)
+		err = c.Parse(t)
 		if err != nil {
 			continue
 		}
 		if c.method == "scrape" {
 
-			// Crawl through the urls of the books
-			c.Crawl(c.books)
+			// Crawl through the urls of the categories
+			c.Crawl(c.categories)
 		}
 
 		if c.method == "update" {
@@ -88,7 +90,8 @@ func (c *Crawler) run() {
 	}
 }
 
-// Crawl starts to crawl through a given urls extracting individual book urls
+// Crawl starts to crawl through a given urls extracting
+// individual book urls
 func (c *Crawler) Crawl(urls []string) (ok bool) {
 
 	ok = c.Save(urls)
@@ -99,13 +102,15 @@ func (c *Crawler) Crawl(urls []string) (ok bool) {
 
 	for _, url := range urls {
 		fmt.Println(url)
-		time.Sleep(time.Second * 5)
-		_, err := c.Get("http://www.shamela.ws" + url)
-		if err != nil {
+		// time.Sleep(time.Second * 5)
+		fmt.Println("http://www.shamela.ws" + url)
 
-			log.Println(err)
-			return false
-		}
+		// _, err := c.Get("http://www.shamela.ws" + url)
+		// if err != nil {
+		// 	log.Println(err)
+		// 	return false
+		// }
+
 	}
 	return ok
 }
@@ -122,7 +127,8 @@ func (c *Crawler) Save(urls []string) (ok bool) {
 	}
 
 	ok = true
-	// TODO: Go through all pages and crawl and pull out urls of the books
+	// TODO: Go through all pages and crawl and
+	// pull out urls of the books
 	for _, url := range urls {
 		// store each url into the file
 		_, err := file.WriteString("http://www.shamela.ws" + url + "\n")
@@ -130,7 +136,7 @@ func (c *Crawler) Save(urls []string) (ok bool) {
 			ok = false
 			return ok
 		}
-		log.Println("http://www.shamela.ws" + url + "\n")
+		// log.Println("http://www.shamela.ws" + url + "\n")
 	}
 
 	return ok
@@ -169,24 +175,25 @@ func (c *Crawler) Get(url string) (bytes []byte, err error) {
 	return bytes, nil
 }
 
-func (c *Crawler) Parse(t *Tag) (books []string, err error) {
+func (c *Crawler) Parse(t *Tag) (err error) {
 
 	bytes, err := c.Get(c.url)
 	// parse the HTML document
-	re, ok := t.Compile(t.Name)
+	re, ok := t.Compile(t.Name, `\/index.php\/category\/\d+`)
 	t.Regex = *re
+
 	// TODO: test to ensure error is indeed being returned.
 	if !ok {
 
-		return nil, errors.New("could not compile the regex properly")
+		return errors.New("could not compile the regex properly")
 	}
 
 	// Checking if there is a match
 	// and if there is a match we get a []string
-	c.books, err = t.Match(t.Regex, string(bytes))
+	c.categories, err = t.Match(t.Regex, string(bytes))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return c.books, nil
+	return nil
 }

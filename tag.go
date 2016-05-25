@@ -33,7 +33,7 @@ func (t *Tag) New(name string) *Tag {
 }
 
 //Compile returns a regular expression, and a bool
-func (t *Tag) Compile(name string) (*regexp.Regexp, bool) {
+func (t *Tag) Compile(name string, rgx string) (*regexp.Regexp, bool) {
 
 	var re = new(regexp.Regexp)
 	var ok bool
@@ -50,7 +50,7 @@ func (t *Tag) Compile(name string) (*regexp.Regexp, bool) {
 	case "a":
 		// Looking for just about any anchor element
 		log.Println("Looking for all <a> elements!")
-		re = regexp.MustCompile(`\/index.php\/category\/\d+`)
+		re = regexp.MustCompile(rgx)
 
 		ok = true
 		return re, ok
