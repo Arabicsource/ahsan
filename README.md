@@ -16,7 +16,7 @@ Parsing web pages for download links since Shamela.ws has no public API for new
 content uploaded on the website. 
 
 
-##### TODO 
+##### TODO
 
 - [ ]   Scrape shamela.ws category pages in an interval period (set by flags)
 - [ ]   Store retrieved urls in json file
@@ -27,6 +27,7 @@ content uploaded on the website.
 ##### FIXME
 
 - [ ]   Category links scraped, however work on goroutines for scraping individual category pages.
+- [ ]   create channel to pass through links of categories
 - [ ]   refactor the regex code and have it as its own package to be imported.
 
 

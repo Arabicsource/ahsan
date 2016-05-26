@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"log"
 	"regexp"
 )
 
@@ -49,7 +48,7 @@ func (t *Tag) Compile(name string, rgx string) (*regexp.Regexp, bool) {
 	// Do likewise for other HTML elements when you refactor the code
 	case "a":
 		// Looking for just about any anchor element
-		log.Println("Looking for all <a> elements!")
+		// log.Println("Looking for all <a> elements!")
 		re = regexp.MustCompile(rgx)
 
 		ok = true

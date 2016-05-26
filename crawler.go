@@ -31,7 +31,7 @@ type Crawler struct {
 	url string
 
 	// url channel
-	urls chan string
+	urls chan []string
 }
 
 //ServeHTTP handling incoming requests
@@ -59,6 +59,8 @@ func (c *Crawler) run() {
 	// This code in here needs to run in its own for loop
 
 	var err error
+	c.urls = make(chan []string, 4)
+
 	for {
 
 		// set the method of crawling
@@ -76,7 +78,10 @@ func (c *Crawler) run() {
 		if c.method == "scrape" {
 
 			// Crawl through the urls of the categories
-			c.Crawl(c.categories)
+			ok := c.Crawl(c.categories)
+			if !ok {
+				log.Println("Could not crawl through the urls of the categories")
+			}
 		}
 
 		if c.method == "update" {
@@ -95,25 +100,25 @@ func (c *Crawler) run() {
 
 // Crawl starts to crawl through a given urls extracting
 // individual book urls
-func (c *Crawler) Crawl(urls []string) (ok bool) {
+func (c *Crawler) Crawl(urls []string) bool {
 
-	ok = c.Save(urls)
+	ok := c.Save(urls)
 	if !ok {
 		log.Println("Could not save the urls to the file")
 		return ok
 	}
 
 	for _, url := range urls {
-		fmt.Println(url)
-		// time.Sleep(time.Second * 5)
-		fmt.Println("http://www.shamela.ws" + url)
+		go func(url string) {
+			// fmt.Println("http://www.shamela.ws" + url)
 
-		// _, err := c.Get("http://www.shamela.ws" + url)
-		// if err != nil {
-		// 	log.Println(err)
-		// 	return false
-		// }
+			c.crawlPage(url)
+		}(url)
 
+	}
+	select {
+	case <-c.urls:
+		fmt.Println(<-c.urls)
 	}
 	return ok
 }
@@ -199,4 +204,37 @@ func (c *Crawler) Parse(t *Tag) (err error) {
 	}
 
 	return nil
+}
+
+func (c *Crawler) crawlPage(url string) {
+
+	// Make get requests to the category page and send the links
+	// through the urls channel
+	rsp, err := c.Get("http://www.shamela.ws" + url)
+	if err != nil {
+		log.Println(err)
+	}
+
+	t := new(Tag)
+	t.New("a")
+
+	re, ok := t.Compile(t.Name, `\/index.php\/book\/\d+`)
+
+	// TODO: test to ensure error is indeed being returned.
+	if !ok {
+
+		log.Printf("Could not compile the regex properly")
+	}
+
+	t.Regex = *re
+	c.books, err = t.Match(t.Regex, string(rsp))
+	if err != nil {
+
+		log.Printf("could not match the regex to the body: %v", err)
+
+	}
+	// log.Println(c.books)
+
+	c.urls <- c.books
+
 }
