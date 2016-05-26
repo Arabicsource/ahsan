@@ -29,6 +29,9 @@ type Crawler struct {
 	// which url to get. This may be updated through the code as the crawler
 	// gets a different HTML document each time.
 	url string
+
+	// url channel
+	urls chan string
 }
 
 //ServeHTTP handling incoming requests
