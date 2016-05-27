@@ -29,9 +29,6 @@ type Crawler struct {
 	// which url to get. This may be updated through the code as the crawler
 	// gets a different HTML document each time.
 	url string
-
-	// url channel
-	urls chan []string
 }
 
 //ServeHTTP handling incoming requests
@@ -59,8 +56,6 @@ func (c *Crawler) run() {
 	// This code in here needs to run in its own for loop
 
 	var err error
-	c.urls = make(chan []string, 4)
-
 	for {
 
 		// set the method of crawling
@@ -79,9 +74,11 @@ func (c *Crawler) run() {
 
 			// Crawl through the urls of the categories
 			ok := c.Crawl(c.categories)
-			if !ok {
-				log.Println("Could not crawl through the urls of the categories")
+
+			for i := 0; i < len(c.categories); i++ {
+				fmt.Println(<-ok)
 			}
+			log.Println("Done!")
 		}
 
 		if c.method == "update" {
@@ -91,36 +88,39 @@ func (c *Crawler) run() {
 				log.Println(err)
 
 			}
+			fmt.Println("test")
+
 		}
 
-		time.Sleep(time.Second * *interval)
-
+		time.Sleep(time.Hour * *interval)
 	}
 }
 
 // Crawl starts to crawl through a given urls extracting
 // individual book urls
-func (c *Crawler) Crawl(urls []string) bool {
+func (c *Crawler) Crawl(urls []string) chan string {
+
+	urlChan := make(chan string, 20)
 
 	ok := c.Save(urls)
 	if !ok {
+
 		log.Println("Could not save the urls to the file")
-		return ok
+		return nil
 	}
 
-	for _, url := range urls {
-		go func(url string) {
+	for i, url := range urls {
+		go func(url string, i int) {
 			// fmt.Println("http://www.shamela.ws" + url)
 
-			c.crawlPage(url)
-		}(url)
+			books := c.crawlPage(url)
+			urlChan <- fmt.Sprintf("[%d] -> %v ", i, books)
+		}(url, i)
 
 	}
-	select {
-	case <-c.urls:
-		fmt.Println(<-c.urls)
-	}
-	return ok
+
+	return urlChan
+
 }
 
 // Save will save each link to the top of the file
@@ -206,10 +206,10 @@ func (c *Crawler) Parse(t *Tag) (err error) {
 	return nil
 }
 
-func (c *Crawler) crawlPage(url string) {
+func (c *Crawler) crawlPage(url string) []string {
 
 	// Make get requests to the category page and send the links
-	// through the urls channel
+	// through the urlChan channel
 	rsp, err := c.Get("http://www.shamela.ws" + url)
 	if err != nil {
 		log.Println(err)
@@ -227,7 +227,7 @@ func (c *Crawler) crawlPage(url string) {
 	}
 
 	t.Regex = *re
-	c.books, err = t.Match(t.Regex, string(rsp))
+	books, err := t.Match(t.Regex, string(rsp))
 	if err != nil {
 
 		log.Printf("could not match the regex to the body: %v", err)
@@ -235,6 +235,6 @@ func (c *Crawler) crawlPage(url string) {
 	}
 	// log.Println(c.books)
 
-	c.urls <- c.books
+	return books
 
 }

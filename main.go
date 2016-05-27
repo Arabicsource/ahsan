@@ -5,7 +5,7 @@ import (
 	"log"
 )
 
-var interval = flag.Duration("interval", 12, "Default 12 Hours")
+var interval = flag.Duration("interval", 12, "Default 12 Hours (measured by hours)")
 var method = flag.String("method", "scrape", "update or scrape")
 
 // Book to be downloaded from the shamela website
