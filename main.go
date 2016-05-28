@@ -1,59 +1,119 @@
 package main
 
 import (
-	"flag"
+	"fmt"
+	"io/ioutil"
 	"log"
+	"net/http"
+	"regexp"
 	"time"
 )
 
-var interval = flag.Duration("interval", 12, "Default 12 Hours (measured by hours)")
-var method = flag.String("method", "scrape", "update or scrape")
 var start = time.Now()
+var urlChan chan string
 
-// Book to be downloaded from the shamela website
-type Book struct {
-	Bid  int
-	Name string
-	Link Link
-	Bok  string
-	Pdf  string
-}
+type Crawler struct{}
 
-// Link of the books that are process and stored in json file
-// to be consumed by the crawler
-type Link struct {
-
-	// The address of the .bok files only as they are the ones to be downloaded
-	// and processed in preparation for indexing it into Elasticsearch.
-	Address string `json: "address"`
-}
-
-// Basic http server listening on port 8000
 func main() {
-	// Parse the flags
-	flag.Parse()
 
-	switch *method {
-
-	default:
-		log.Println("invalid method specified!")
-		return
-	case "update":
-		break
-	case "scrape":
-		break
-	}
-
-	// Create new Crawler
 	c := new(Crawler)
 
-	c.run()
+	urlChan = c.run()
 
-	//	fmt.Println("Listening on local port 8000")
-	//	err := http.ListenAndServe(":8000", c)
-	//	if err != nil {
-	//		log.Fatalln(err)
-	//
-	//	}
+	for {
+		select {
+		case url := <-urlChan:
+			fmt.Println(url)
 
+		case <-time.After(time.Second * 2):
+			log.Println("Exiting")
+			log.Println(time.Since(start))
+			return
+
+		}
+	}
+}
+
+func (c *Crawler) run() chan string {
+	var err error
+	var cats []string
+	urlChan = make(chan string, 10)
+
+	for {
+
+		if cats, err = getCategories(); err != nil {
+			log.Println(err)
+
+		}
+
+		for i, cat := range cats {
+
+			go func(cat string, i int) {
+				// fmt.Println("http://www.shamela.ws" + url)
+
+				books, err := c.crawlCat(cat)
+				if err != nil {
+
+					log.Println(err)
+					return
+				}
+				for _, book := range books {
+					urlChan <- fmt.Sprintf("http://www.shamela.ws%s", book)
+				}
+			}(cat, i)
+
+		}
+
+		return urlChan
+	}
+}
+
+// getCategories gets all the category links from the Categories page on shamela
+// http://www.shamela.ws/index.php/categories
+func getCategories() (cats []string, err error) {
+
+	resp, err := getBody("http://www.shamela.ws/index.php/categories")
+	if err != nil {
+		return nil, err
+	}
+	respbody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	re := regexp.MustCompile(`\/index.php\/category\/\d+`)
+	cats = re.FindAllString(string(respbody), -1)
+
+	return cats, nil
+
+}
+
+// crawlCat crawls the individual category page and retrieves the urls to
+// the individual books' page.
+func (c *Crawler) crawlCat(cat string) (books []string, err error) {
+	resp, err := getBody("http://www.shamela.ws" + cat)
+	if err != nil {
+		return nil, err
+	}
+
+	respbody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	re := regexp.MustCompile(`\/index.php\/book\/\d+`)
+	books = re.FindAllString(string(respbody), -1)
+
+	return books, nil
+}
+
+// getBody creates a http client and makes a Get request to the given url,
+// and returns a pointer to a http.Response struct
+func getBody(url string) (*http.Response, error) {
+	client := new(http.Client)
+
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
