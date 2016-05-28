@@ -74,11 +74,33 @@ func (c *Crawler) run() {
 
 			// Crawl through the urls of the categories
 			ok := c.Crawl(c.categories)
+			var count = 9
 
-			for i := 0; i < len(c.categories); i++ {
-				fmt.Println(<-ok)
+		Loop:
+			for {
+
+				select {
+				case d := <-ok:
+					fmt.Printf("[%d] \t %s \n", count, d)
+					count++
+
+				case <-time.After(time.Second * 2):
+					break Loop
+				}
 			}
-			log.Println("Done!")
+
+			// for {
+			// 	fmt.Println(<-ok)
+			// }
+
+			// for i := 0; i < len(c.categories); i++ {
+			// 	fmt.Println(<-ok)
+			// }
+			elapsed := time.Since(start)
+
+			fmt.Println(elapsed)
+
+			// log.Println("Done!")
 		}
 
 		if c.method == "update" {
@@ -114,7 +136,9 @@ func (c *Crawler) Crawl(urls []string) chan string {
 			// fmt.Println("http://www.shamela.ws" + url)
 
 			books := c.crawlPage(url)
-			urlChan <- fmt.Sprintf("[%d] -> %v ", i, books)
+			for _, book := range books {
+				urlChan <- fmt.Sprintf("http://www.shamela.ws%s", book)
+			}
 		}(url, i)
 
 	}

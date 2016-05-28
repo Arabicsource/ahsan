@@ -3,10 +3,12 @@ package main
 import (
 	"flag"
 	"log"
+	"time"
 )
 
 var interval = flag.Duration("interval", 12, "Default 12 Hours (measured by hours)")
 var method = flag.String("method", "scrape", "update or scrape")
+var start = time.Now()
 
 // Book to be downloaded from the shamela website
 type Book struct {
