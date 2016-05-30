@@ -1,16 +1,19 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
 
+var file = flag.String("output", "", "Set the output file")
 var start = time.Now()
 var urlChan chan string
 
@@ -23,38 +26,59 @@ func main() {
 	urlChan = c.run()
 	count := 1
 
+	var f *os.File
+
+	if *file != "" {
+		f, err := os.Create(*file)
+		if err != nil {
+			log.Println(err)
+		}
+		defer f.Close()
+	} else {
+		f, err := os.Create("urls.txt")
+		if err != nil {
+			log.Println(err)
+		}
+		defer f.Close()
+	}
+
 	for {
 		select {
 		case url := <-urlChan:
 			fmt.Printf("[%d] - %v \n", count, url)
+			_, _ = f.WriteString(url)
 			count++
 
-		case <-time.After(time.Millisecond * 1500):
+		case <-time.After(time.Millisecond * 3000):
 			log.Println("Exiting")
 			log.Println(time.Since(start))
-			return
+			break
 
 		}
 	}
 }
 
+// run is the starting point
 func (c *Crawler) run() chan string {
 	var err error
-	var cats []string
+	var cats []string // slice of catagories uri
 	urlChan = make(chan string, 20)
 
 	for {
 
+		// get categories from http://www.shamela.ws/index.php/categories
 		if cats, err = getCategories(); err != nil {
 			log.Println(err)
 
 		}
 
+		// loop through each category page, and launch a goroutine for each
 		for i, cat := range cats {
 
 			go func(cat string, i int, urlChan chan string) {
 				// fmt.Println("http://www.shamela.ws" + url)
 
+				// get slice of urls of books (links to pages of individual books)
 				books, err := c.crawlCat(cat, urlChan)
 				if err != nil {
 
@@ -92,7 +116,7 @@ func getCategories() (cats []string, err error) {
 
 }
 
-// crawlCat crawls the individual category page and retrieves the urls to
+// crawlCat crawls the individual category page and retrieves the urls of books  to
 // the individual books' page.
 func (c *Crawler) crawlCat(cat string, urlChan chan string) (books []string, err error) {
 	resp, err := getBody("http://www.shamela.ws" + cat)
@@ -120,8 +144,12 @@ func (c *Crawler) crawlCat(cat string, urlChan chan string) (books []string, err
 		log.Println(err)
 	}
 
+	// The default category page is the first page for the category page
+	// so long the number is less or equals to the maxPages for that category
+	// execute a goroutine, and process those pages concurrently.
 	for i := 1; i <= maxPages; i++ {
 
+		// goroutine scraping the page number n for a particular category
 		go func(i int, cat string, urlChan chan string) {
 
 			resp, err := getBody("http://www.shamela.ws" + cat + "/page-" + strconv.Itoa(i))
