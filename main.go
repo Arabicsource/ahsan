@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -19,13 +21,15 @@ func main() {
 	c := new(Crawler)
 
 	urlChan = c.run()
+	count := 1
 
 	for {
 		select {
 		case url := <-urlChan:
-			fmt.Println(url)
+			fmt.Printf("[%d] - %v \n", count, url)
+			count++
 
-		case <-time.After(time.Second * 2):
+		case <-time.After(time.Second * 3):
 			log.Println("Exiting")
 			log.Println(time.Since(start))
 			return
@@ -37,7 +41,7 @@ func main() {
 func (c *Crawler) run() chan string {
 	var err error
 	var cats []string
-	urlChan = make(chan string, 10)
+	urlChan = make(chan string, 1)
 
 	for {
 
@@ -48,10 +52,10 @@ func (c *Crawler) run() chan string {
 
 		for i, cat := range cats {
 
-			go func(cat string, i int) {
+			go func(cat string, i int, urlChan chan string) {
 				// fmt.Println("http://www.shamela.ws" + url)
 
-				books, err := c.crawlCat(cat)
+				books, err := c.crawlCat(cat, urlChan)
 				if err != nil {
 
 					log.Println(err)
@@ -60,7 +64,7 @@ func (c *Crawler) run() chan string {
 				for _, book := range books {
 					urlChan <- fmt.Sprintf("http://www.shamela.ws%s", book)
 				}
-			}(cat, i)
+			}(cat, i, urlChan)
 
 		}
 
@@ -90,7 +94,7 @@ func getCategories() (cats []string, err error) {
 
 // crawlCat crawls the individual category page and retrieves the urls to
 // the individual books' page.
-func (c *Crawler) crawlCat(cat string) (books []string, err error) {
+func (c *Crawler) crawlCat(cat string, urlChan chan string) (books []string, err error) {
 	resp, err := getBody("http://www.shamela.ws" + cat)
 	if err != nil {
 		return nil, err
@@ -100,8 +104,37 @@ func (c *Crawler) crawlCat(cat string) (books []string, err error) {
 	if err != nil {
 		return nil, err
 	}
+	// regex for book url
 	re := regexp.MustCompile(`\/index.php\/book\/\d+`)
 	books = re.FindAllString(string(respbody), -1)
+
+	// regex for last page url
+	paginationUrl := regexp.MustCompile(`\/index.php\/category\/\d+\/page-\d`)
+	pagination := paginationUrl.FindAllString(string(respbody), -1)
+
+	if len(pagination) == 0 {
+		return books, nil
+	}
+	maxPages, err := getLastPage(pagination[len(pagination)-1])
+	if err != nil {
+		log.Println(err)
+	}
+
+	for i := 1; i <= maxPages; i++ {
+
+		resp, err = getBody("http://www.shamela.ws" + cat + "/page-" + strconv.Itoa(i))
+		if err != nil {
+			log.Println(err)
+		}
+
+		respbody, err = ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Println(err)
+		}
+
+		pBooks := re.FindAllString(string(respbody), -1)
+		books = append(books, pBooks...)
+	}
 
 	return books, nil
 }
@@ -116,4 +149,12 @@ func getBody(url string) (*http.Response, error) {
 		return nil, err
 	}
 	return resp, nil
+}
+
+// getLastPage returns the last page number if it can find it,
+// or returns an error.
+func getLastPage(url string) (int, error) {
+	last := strings.Split(url, "-")
+	n := last[len(last)-1]
+	return strconv.Atoi(n)
 }
