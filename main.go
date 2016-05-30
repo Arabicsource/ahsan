@@ -29,7 +29,7 @@ func main() {
 			fmt.Printf("[%d] - %v \n", count, url)
 			count++
 
-		case <-time.After(time.Second * 3):
+		case <-time.After(time.Millisecond * 1500):
 			log.Println("Exiting")
 			log.Println(time.Since(start))
 			return
@@ -41,7 +41,7 @@ func main() {
 func (c *Crawler) run() chan string {
 	var err error
 	var cats []string
-	urlChan = make(chan string, 1)
+	urlChan = make(chan string, 20)
 
 	for {
 
@@ -122,18 +122,27 @@ func (c *Crawler) crawlCat(cat string, urlChan chan string) (books []string, err
 
 	for i := 1; i <= maxPages; i++ {
 
-		resp, err = getBody("http://www.shamela.ws" + cat + "/page-" + strconv.Itoa(i))
-		if err != nil {
-			log.Println(err)
-		}
+		go func(i int, cat string, urlChan chan string) {
 
-		respbody, err = ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Println(err)
-		}
+			resp, err := getBody("http://www.shamela.ws" + cat + "/page-" + strconv.Itoa(i))
+			if err != nil {
+				log.Println(err)
+			}
 
-		pBooks := re.FindAllString(string(respbody), -1)
-		books = append(books, pBooks...)
+			respbody, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				log.Println(err)
+			}
+
+			re := regexp.MustCompile(`\/index.php\/book\/\d+`)
+			pBooks := re.FindAllString(string(respbody), -1)
+
+			for _, book := range pBooks {
+
+				urlChan <- fmt.Sprintf("http://www.shamela.ws%s", book)
+			}
+		}(i, cat, urlChan)
+
 	}
 
 	return books, nil
