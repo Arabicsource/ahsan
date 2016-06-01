@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -13,7 +12,6 @@ import (
 	"time"
 )
 
-var file = flag.String("output", "", "Set the output file")
 var start = time.Now()
 var urlChan chan string
 
@@ -24,45 +22,41 @@ func main() {
 	c := new(Crawler)
 
 	urlChan = c.run()
+	defer close(urlChan)
 	count := 1
 
-	var f *os.File
-
-	if *file != "" {
-		f, err := os.Create(*file)
-		if err != nil {
-			log.Println(err)
-		}
-		defer f.Close()
-	} else {
-		f, err := os.Create("urls.txt")
-		if err != nil {
-			log.Println(err)
-		}
-		defer f.Close()
+	f, err := os.Create("urls.txt")
+	if err != nil {
+		log.Println(err)
 	}
+	defer f.Close()
 
+Loop:
 	for {
 		select {
 		case url := <-urlChan:
 			fmt.Printf("[%d] - %v \n", count, url)
-			_, _ = f.WriteString(url)
+			_, err := f.WriteString(fmt.Sprintf("%v\n", url))
+			if err != nil {
+				panic(err)
+			}
 			count++
 
-		case <-time.After(time.Millisecond * 3000):
+		case <-time.After(time.Millisecond * 5000):
 			log.Println("Exiting")
 			log.Println(time.Since(start))
-			break
+			break Loop
 
 		}
 	}
+	println(count - 1)
 }
 
 // run is the starting point
 func (c *Crawler) run() chan string {
 	var err error
 	var cats []string // slice of catagories uri
-	urlChan = make(chan string, 20)
+	urlChan = make(chan string)
 
 	for {
 
@@ -150,26 +144,7 @@ func (c *Crawler) crawlCat(cat string, urlChan chan string) (books []string, err
 	for i := 1; i <= maxPages; i++ {
 
 		// goroutine scraping the page number n for a particular category
-		go func(i int, cat string, urlChan chan string) {
-
-			resp, err := getBody("http://www.shamela.ws" + cat + "/page-" + strconv.Itoa(i))
-			if err != nil {
-				log.Println(err)
-			}
-
-			respbody, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				log.Println(err)
-			}
-
-			re := regexp.MustCompile(`\/index.php\/book\/\d+`)
-			pBooks := re.FindAllString(string(respbody), -1)
-
-			for _, book := range pBooks {
-
-				urlChan <- fmt.Sprintf("http://www.shamela.ws%s", book)
-			}
-		}(i, cat, urlChan)
+		go getCatPage(i, cat, urlChan)
 
 	}
 
@@ -194,4 +169,25 @@ func getLastPage(url string) (int, error) {
 	last := strings.Split(url, "-")
 	n := last[len(last)-1]
 	return strconv.Atoi(n)
+}
+
+func getCatPage(i int, cat string, urlChan chan string) {
+
+	resp, err := getBody("http://www.shamela.ws" + cat + "/page-" + strconv.Itoa(i))
+	if err != nil {
+		log.Println(err)
+	}
+
+	respbody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Println(err)
+	}
+
+	re := regexp.MustCompile(`\/index.php\/book\/\d+`)
+	pBooks := re.FindAllString(string(respbody), -1)
+
+	for _, book := range pBooks {
+
+		urlChan <- fmt.Sprintf("http://www.shamela.ws%s", book)
+	}
 }
