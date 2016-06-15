@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -59,6 +60,10 @@ Loop:
 	}
 	fmt.Println("Total books found: ", count-1)
 	fmt.Println(fmt.Sprintf("\n\nStarting the downloading of the books:\n\n\n"))
+
+	for _, book := range books {
+		download(book)
+	}
 
 }
 
@@ -178,5 +183,68 @@ func getCatPage(i int, cat string, urlChan chan string) {
 }
 
 func download(url string) {
+
+	resp, err := getBody(url)
+	if err != nil {
+		log.Println(err)
+	}
+
+	respbody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Println(err)
+	}
+	resp.Body.Close()
+
+	re := regexp.MustCompile(`http://shamela.ws/books/\d+/\d+.rar`)
+	book := re.FindAllString(string(respbody), -1)
+	if book == nil {
+		fmt.Println("no match!")
+		return
+	}
+
+	// get the filename so to replicate it locally when we create it
+	bookName := strings.SplitAfter(string(book[len(book)-1]), "/")
+	fileName := bookName[len(bookName)-1]
+
+	// now we have the link to the rar file (book) and need to download it.
+	// create downloads directory if it doesn't exist
+	if _, err = os.Stat("downloads"); os.IsNotExist(err) {
+		err = os.Mkdir("downloads", 0700)
+		if err != nil {
+			log.Println("could not create the directory downloads, with err: ", err)
+			return
+		}
+	}
+
+	var f *os.File
+
+	// create the file if it does not exist
+	if _, err = os.Stat("downloads/" + string(fileName)); os.IsNotExist(err) {
+		f, err = os.Create("downloads/" + fileName)
+		if err != nil {
+			log.Println("could not create file, with err: ", err)
+			return
+		}
+		defer f.Close()
+	}
+
+	fmt.Printf("Downloading %v now ....", book[len(book)-1])
+	r, err := http.Get(book[len(book)-1])
+	if err != nil {
+		log.Println("could not download the book, with err : ", err)
+		return
+	}
+
+	fmt.Printf("...Done!\n")
+
+	defer r.Body.Close()
+
+	n, err := io.Copy(f, r.Body)
+	if err != nil {
+		log.Println("Could not copy the content to the newly created file, with err: ", err)
+		return
+	}
+
+	fmt.Printf("Downloaded %v number of bytes......\n", n)
 
 }

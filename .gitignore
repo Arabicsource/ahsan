@@ -1,6 +1,9 @@
+.DS_Store
+tafsir/.DS_Store
 ahsan
 ./ahsan
 urls.txt
 backup/*
 tafsir/urls.txt
+tafsir/downloads/*
 
