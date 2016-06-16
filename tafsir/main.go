@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ttacon/chalk"
 )
 
 var start = time.Now()
@@ -21,9 +23,7 @@ type Crawler struct{}
 func main() {
 
 	fmt.Println(`
-
 Scraping http://www.shamela.ws/:
-
 	`)
 
 	c := new(Crawler)
@@ -43,13 +43,20 @@ Loop:
 	for {
 		select {
 		case url := <-urlChan:
-			fmt.Printf("[%d] - %v \n", count, url)
-			_, err := f.WriteString(fmt.Sprintf("%v\n", url))
-			if err != nil {
-				panic(err)
+
+			if !contains(books, url) {
+
+				fmt.Printf("[%d] - %v \n", count, url)
+
+				_, err := f.WriteString(fmt.Sprintf("%v\n", url))
+
+				if err != nil {
+					panic(err)
+				}
+
+				books = append(books, fmt.Sprintf("%v", url))
+				count++
 			}
-			books = append(books, fmt.Sprintf("%v", url))
-			count++
 
 		case <-time.After(time.Millisecond * 5000):
 			log.Println("Exiting")
@@ -61,8 +68,10 @@ Loop:
 	fmt.Println("Total books found: ", count-1)
 	fmt.Println(fmt.Sprintf("\n\nStarting the downloading of the books:\n\n\n"))
 
+	ct := 1
 	for _, book := range books {
-		download(book)
+		download(ct, book)
+		ct++
 	}
 
 }
@@ -119,19 +128,23 @@ func (c *Crawler) crawlCat(cat string, urlChan chan string) (books []string, err
 	// regex for last page url
 	paginationUrl := regexp.MustCompile(`\/index.php\/category\/\d+\/page-\d`)
 	pagination := paginationUrl.FindAllString(string(respbody), -1)
-
 	if len(pagination) == 0 {
 		return books, nil
 	}
+
 	maxPages, err := getLastPage(pagination[len(pagination)-1])
 	if err != nil {
 		log.Println(err)
 	}
 
+	fmt.Println("Max number of pages found for this category are: ", maxPages)
+
 	// The default category page is the first page for the category page
 	// so long the number is less or equals to the maxPages for that category
 	// execute a goroutine, and process those pages concurrently.
 	for i := 1; i <= maxPages; i++ {
+
+		fmt.Printf("Crawling through page number %d\n", i)
 
 		// goroutine scraping the page number n for a particular category
 		go getCatPage(i, cat, urlChan)
@@ -182,7 +195,7 @@ func getCatPage(i int, cat string, urlChan chan string) {
 	}
 }
 
-func download(url string) {
+func download(count int, url string) {
 
 	resp, err := getBody(url)
 	if err != nil {
@@ -228,14 +241,12 @@ func download(url string) {
 		defer f.Close()
 	}
 
-	fmt.Printf("Downloading %v now ....", book[len(book)-1])
+	fmt.Printf("[%d] Downloading %v now \t.....", count, book[len(book)-1])
 	r, err := http.Get(book[len(book)-1])
 	if err != nil {
 		log.Println("could not download the book, with err : ", err)
 		return
 	}
-
-	fmt.Printf("...Done!\n")
 
 	defer r.Body.Close()
 
@@ -245,6 +256,14 @@ func download(url string) {
 		return
 	}
 
-	fmt.Printf("Downloaded %v number of bytes......\n", n)
+	fmt.Printf(chalk.Bold.TextStyle(fmt.Sprintf("\t%v kb  Downloaded. Done!s\n", n/int64(1000))))
+}
 
+func contains(urlSlice []string, val string) bool {
+	for _, url := range urlSlice {
+		if url == val {
+			return true
+		}
+	}
+	return false
 }
