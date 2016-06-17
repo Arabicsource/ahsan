@@ -20,62 +20,6 @@ var urlChan chan string
 
 type Crawler struct{}
 
-func main() {
-
-	fmt.Println(`
-Scraping http://www.shamela.ws/:
-	`)
-
-	c := new(Crawler)
-
-	urlChan = c.run()
-	defer close(urlChan)
-	count := 1
-
-	f, err := os.Create("urls.txt")
-	if err != nil {
-		log.Println(err)
-	}
-	defer f.Close()
-
-	var books []string
-Loop:
-	for {
-		select {
-		case url := <-urlChan:
-
-			if !contains(books, url) {
-
-				fmt.Printf("[%d] - %v \n", count, url)
-
-				_, err := f.WriteString(fmt.Sprintf("%v\n", url))
-
-				if err != nil {
-					panic(err)
-				}
-
-				books = append(books, fmt.Sprintf("%v", url))
-				count++
-			}
-
-		case <-time.After(time.Millisecond * 5000):
-			log.Println("Exiting")
-			log.Println(time.Since(start))
-			break Loop
-
-		}
-	}
-	fmt.Println("Total books found: ", count-1)
-	fmt.Println(fmt.Sprintf("\n\nStarting the downloading of the books:\n\n\n"))
-
-	ct := 1
-	for _, book := range books {
-		download(ct, book)
-		ct++
-	}
-
-}
-
 // run is the starting point
 func (c *Crawler) run() chan string {
 	urlChan = make(chan string)
@@ -195,7 +139,7 @@ func getCatPage(i int, cat string, urlChan chan string) {
 	}
 }
 
-func download(count int, url string) {
+func download(count chan string, url string) {
 
 	resp, err := getBody(url)
 	if err != nil {
@@ -241,7 +185,6 @@ func download(count int, url string) {
 		defer f.Close()
 	}
 
-	fmt.Printf("[%d] Downloading %v now \t.....", count, book[len(book)-1])
 	r, err := http.Get(book[len(book)-1])
 	if err != nil {
 		log.Println("could not download the book, with err : ", err)
@@ -256,7 +199,7 @@ func download(count int, url string) {
 		return
 	}
 
-	fmt.Printf(chalk.Bold.TextStyle(fmt.Sprintf("\t%v kb  Downloaded. Done!s\n", n/int64(1000))))
+	count <- fmt.Sprintf(fmt.Sprintf("Downloading %v \t ....", book[len(book)-1]) + chalk.Bold.TextStyle(fmt.Sprintf("\t%v kb  Downloaded. Done!\n", n/int64(1000))))
 }
 
 func contains(urlSlice []string, val string) bool {
@@ -266,4 +209,76 @@ func contains(urlSlice []string, val string) bool {
 		}
 	}
 	return false
+}
+
+func main() {
+
+	fmt.Println(`
+Scraping http://www.shamela.ws/ for URL links to shamela books in Tafsir Category.
+	`)
+
+	c := new(Crawler)
+
+	urlChan = c.run()
+	defer close(urlChan)
+	count := 1
+
+	f, err := os.Create("urls.txt")
+	if err != nil {
+		log.Println(err)
+	}
+	defer f.Close()
+
+	var books []string
+Loop:
+	for {
+		select {
+		case url := <-urlChan:
+
+			if !contains(books, url) {
+
+				fmt.Printf("[%d] - %v \n", count, url)
+
+				_, err := f.WriteString(fmt.Sprintf("%v\n", url))
+
+				if err != nil {
+					panic(err)
+				}
+
+				books = append(books, fmt.Sprintf("%v", url))
+				count++
+			}
+
+		case <-time.After(time.Millisecond * 5000):
+			log.Println("Exiting")
+			log.Println(time.Since(start))
+			break Loop
+
+		}
+	}
+
+	fmt.Println("Total books found: ", count-1)
+	fmt.Println(fmt.Sprintf("\n\nStarting the downloading of the books:\n\n"))
+
+	ct := make(chan string)
+	for _, book := range books {
+		go func(ct chan string, book string) {
+			download(ct, book)
+		}(ct, book)
+	}
+
+Loop2:
+	for {
+		select {
+		case str := <-ct:
+
+			fmt.Println(str)
+
+		case <-time.After(time.Minute * 1):
+			log.Println("Exiting")
+			break Loop2
+
+		}
+	}
+
 }
