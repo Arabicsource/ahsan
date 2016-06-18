@@ -211,6 +211,12 @@ func contains(urlSlice []string, val string) bool {
 	return false
 }
 
+// extract a rar file and save content into a bok directory
+func extract(path string) error {
+
+	return nil
+}
+
 func main() {
 
 	fmt.Println(`
