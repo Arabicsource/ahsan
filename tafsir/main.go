@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -186,18 +187,19 @@ func download(count chan string, url string) {
 	}
 
 	r, err := http.Get(book[len(book)-1])
+
 	if err != nil {
 		log.Println("could not download the book, with err : ", err)
 		return
 	}
-
-	defer r.Body.Close()
 
 	n, err := io.Copy(f, r.Body)
 	if err != nil {
 		log.Println("Could not copy the content to the newly created file, with err: ", err)
 		return
 	}
+
+	r.Body.Close()
 
 	count <- fmt.Sprintf(fmt.Sprintf("Downloading %v \t ....", book[len(book)-1]) + chalk.Bold.TextStyle(fmt.Sprintf("\t%v kb  Downloaded. Done!\n", n/int64(1000))))
 }
@@ -212,8 +214,26 @@ func contains(urlSlice []string, val string) bool {
 }
 
 // extract a rar file and save content into a bok directory
-func extract(path string) error {
+func extract(path string) (err error) {
 
+	if _, err := os.Stat("bok"); os.IsNotExist(err) {
+
+		if err := os.MkdirAll("bok", 0755); err != nil {
+			log.Println(err)
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+
+	cmd := exec.Command("unrar", "e", "../"+path)
+	cmd.Dir = "bok"
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		log.Println(err)
+		return err
+	}
 	return nil
 }
 
@@ -236,6 +256,7 @@ Scraping http://www.shamela.ws/ for URL links to shamela books in Tafsir Categor
 	defer f.Close()
 
 	var books []string
+
 Loop:
 	for {
 		select {
@@ -284,6 +305,18 @@ Loop2:
 			log.Println("Exiting")
 			break Loop2
 
+		}
+	}
+
+	files, err := ioutil.ReadDir("downloads")
+	if err != nil {
+		log.Println(err)
+	}
+
+	for _, file := range files {
+		if err = extract("downloads/" + file.Name()); err != nil {
+			log.Printf("could not extract the file: %v\t%v", file.Name(), err)
+			continue
 		}
 	}
 
