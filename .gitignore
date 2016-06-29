@@ -7,3 +7,4 @@ backup/*
 tafsir/urls.txt
 tafsir/downloads/*
 tafsir/bok/*
+tafsir/sql/*
