@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -11,13 +10,13 @@ import (
 )
 
 func dump(file os.FileInfo) (SQLFile string, err error) {
+
 	err = os.Setenv("MDB_JET3_CHARSET", "cp1256")
 	if err != nil {
 		return "", err
 	}
 
 	cmd := exec.Command("mdb-tables", "bok/"+file.Name())
-
 	output, err := cmd.StdoutPipe()
 	if err != nil {
 		return "", err
@@ -27,15 +26,19 @@ func dump(file os.FileInfo) (SQLFile string, err error) {
 		return "", err
 	}
 
-	r := bufio.NewReader(output)
-	output.Close()
-
-	line, _, err := r.ReadLine()
+	//r := bufio.NewReader(output)
+	r, err := ioutil.ReadAll(output)
 	if err != nil {
 		return "", err
 	}
 
-	l := string(line)
+	if err = cmd.Wait(); err != nil {
+		return "", err
+	}
+
+	output.Close()
+
+	l := string(r)
 	tables := strings.Fields(l)
 
 	var f *os.File
@@ -71,16 +74,26 @@ func dump(file os.FileInfo) (SQLFile string, err error) {
 			return "", err
 		}
 
-		rd := bufio.NewReader(out)
+		//rd := bufio.NewReader(out)
+
+		r, err := ioutil.ReadAll(out)
+		if err != nil {
+			return "", err
+		}
 
 		if err = export.Wait(); err != nil {
 			return "", err
 		}
 
-		_, err = rd.WriteTo(f)
+		_, err = f.Write(r)
 		if err != nil {
 			return "", err
 		}
+
+		//_, err = rd.WriteTo(f)
+		//if err != nil {
+		//	return "", err
+		//}
 
 		out.Close()
 
@@ -103,7 +116,7 @@ func main() {
 			log.Fatal(err)
 
 		}
-		fmt.Printf("Completed SQL file: %v", SQLFile)
+		fmt.Printf("Completed SQL file: %v\n", SQLFile)
 
 	}
 
