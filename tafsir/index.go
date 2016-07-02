@@ -99,7 +99,7 @@ func dump(file os.FileInfo) (SQLFile string, err error) {
 
 	}
 
-	f.Write([]byte("COMMIT;"))
+	f.Write([]byte("COMMIT;\n"))
 	return f.Name(), nil
 }
 
