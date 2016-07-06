@@ -7,12 +7,13 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/nwaples/rardecode"
 	"github.com/ttacon/chalk"
 )
 
@@ -214,10 +215,14 @@ func contains(urlSlice []string, val string) bool {
 }
 
 // extract a rar file and save content into a bok directory
-func extract(path string) (err error) {
+func extract(f string) (err error) {
+
+	err = os.Setenv("MDB_JET3_CHARSET", "cp1256")
+	if err != nil {
+		return err
+	}
 
 	if _, err := os.Stat("bok"); os.IsNotExist(err) {
-
 		if err := os.MkdirAll("bok", 0755); err != nil {
 			log.Println(err)
 			return err
@@ -226,26 +231,64 @@ func extract(path string) (err error) {
 		return err
 	}
 
-	cmd := exec.Command("unrar", "e", "../"+path)
-	cmd.Dir = "bok"
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		log.Println(err)
+	//	cmd := exec.Command("unrar", "e", "../downloads/"+f)
+	//	cmd.Dir = "bok"
+	//	cmd.Stdout = os.Stdout
+	//	cmd.Stderr = os.Stderr
+	//	if err := cmd.Run(); err != nil {
+	//		log.Println(err)
+	//		return err
+	//	}
+
+	// id of the book
+	id := strings.Split(f, ".")[0]
+
+	nfn := id + ".bok"
+
+	rarfile, err := os.Open(filepath.Join("downloads", f))
+	if err != nil {
 		return err
 	}
+
+	rdr, err := rardecode.NewReader(rarfile, "")
+	if err != nil {
+		return err
+	}
+
+	nf, err := rdr.Next()
+	if err != nil {
+		return err
+	}
+
+	ps := make([]byte, nf.UnPackedSize)
+	_, err = rdr.Read(ps)
+	if err != nil {
+		return err
+	}
+
+	//fmt.Println(rdr)
+
+	newbok, err := os.Create(filepath.Join("bok", nfn))
+	defer newbok.Close()
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf(nf.Name+"[%v] packed and [%v] unpacked being moved and renamed as "+nfn+"\n", nf.PackedSize, nf.UnPackedSize)
+	_, err = io.CopyBuffer(newbok, rdr, ps)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func main() {
 
-	fmt.Println(`
-Scraping http://www.shamela.ws/ for URL links to shamela books in Tafsir Category.
-	`)
+	fmt.Println(`Scraping http://www.shamela.ws/ for URL links to shamela books in Tafsir Category.`)
 
 	c := new(Crawler)
-
-	urlChan = c.run()
+	urlChan := c.run()
 	defer close(urlChan)
 	count := 1
 
@@ -314,8 +357,8 @@ Loop2:
 	}
 
 	for _, file := range files {
-		if err = extract("downloads/" + file.Name()); err != nil {
-			log.Printf("could not extract the file: %v\t%v", file.Name(), err)
+		if err = extract(file.Name()); err != nil {
+			log.Println(err)
 			continue
 		}
 	}
