@@ -274,11 +274,13 @@ func extract(f string) (err error) {
 		return err
 	}
 
-	fmt.Printf(nf.Name+"[%v] packed and [%v] unpacked being moved and renamed as "+nfn+"\n", nf.PackedSize, nf.UnPackedSize)
+	fmt.Printf("%v being extracted ....", nfn)
 	_, err = io.CopyBuffer(newbok, rdr, ps)
 	if err != nil {
+		fmt.Printf("error!\n")
 		return err
 	}
+	fmt.Printf("done!\n")
 
 	return nil
 }
