@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -275,9 +276,16 @@ func extract(f string) (err error) {
 	}
 
 	fmt.Printf("%v being extracted ....", nfn)
-	_, err = io.CopyBuffer(newbok, rdr, ps)
+	_, err = io.CopyBuffer(newbok, rdr, nil)
 	if err != nil {
-		fmt.Printf("error!\n")
+		newbok.Close()
+		fmt.Printf("error!")
+		rm := exec.Command("rm", nfn)
+		rm.Stderr = os.Stderr
+		if err = rm.Run(); err != nil {
+			fmt.Printf(" - Could not remove file [" + nfn + "]\n")
+		}
+
 		return err
 	}
 	fmt.Printf("done!\n")
@@ -364,5 +372,4 @@ Loop2:
 			continue
 		}
 	}
-
 }
