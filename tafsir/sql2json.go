@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -39,6 +40,23 @@ type Chapter struct {
 	HeadingLevel string `json: "heading_level"`
 	SubLevel     string `json: "sub_level"`
 	PageId       string `json: "page_id"`
+}
+
+const help = `
+ Please use one of the following arguments:
+
+ -s		Export data to JSON file in json directory that will be created
+ -i		Index data into ElasticSearch
+
+ `
+
+var (
+	saveJson = flag.Bool("s", false, "Wishing to save data to json")
+	indexDB  = flag.Bool("i", false, "Indexing data to Elasticsearch")
+)
+
+func init() {
+	flag.Parse()
 }
 
 func index(db *sql.DB, id string) bool {
@@ -335,12 +353,14 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 		return pages, err
 	}
 
-	f, err = os.Create("json/" + newid + ".json")
-	if err != nil {
-		return pages, err
-	}
+	if *saveJson == true {
+		f, err = os.Create("json/" + newid + ".json")
+		if err != nil {
+			return pages, err
+		}
 
-	defer f.Close()
+		defer f.Close()
+	}
 
 	for rows.Next() {
 
@@ -412,10 +432,12 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 			return pages, err
 		}
 
-		_, err = f.Write([]byte(fmt.Sprintf("%s\n", string(jsonByte))))
-		if err != nil {
-			log.Println(err)
-			return pages, err
+		if *saveJson == true {
+			_, err = f.Write([]byte(fmt.Sprintf("%s\n", string(jsonByte))))
+			if err != nil {
+				log.Println(err)
+				return pages, err
+			}
 		}
 	}
 
@@ -423,6 +445,11 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 }
 
 func main() {
+
+	if *saveJson == false && *indexDB == false {
+		fmt.Println(help)
+		return
+	}
 
 	err := os.Setenv("MDB_JET3_CHARSET", "cp1256")
 	if err != nil {
@@ -435,9 +462,11 @@ func main() {
 		return
 	}
 
-	err = os.MkdirAll("json", 0755)
-	if err != nil {
-		return
+	if *saveJson == true {
+		err = os.MkdirAll("json", 0755)
+		if err != nil {
+			return
+		}
 	}
 
 	for i, file := range files {
