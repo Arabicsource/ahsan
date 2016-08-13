@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -32,7 +33,7 @@ func dump(file os.FileInfo) (SQLFile string, err error) {
 		return "", err
 	}
 
-	if err = cmd.Wait(); err != nil {
+	if err := cmd.Wait(); err != nil {
 		return "", err
 	}
 
@@ -53,6 +54,10 @@ func dump(file os.FileInfo) (SQLFile string, err error) {
 
 	f, err = os.Create("sql/" + fn + ".sql")
 	if err != nil {
+		return "", err
+	}
+
+	if err = dumpSchema(f, file); err != nil {
 		return "", err
 	}
 
@@ -103,6 +108,40 @@ func dump(file os.FileInfo) (SQLFile string, err error) {
 	return f.Name(), nil
 }
 
+func dumpSchema(f *os.File, bok os.FileInfo) error {
+
+	cmd := exec.Command("mdb-schema", filepath.Join("bok", bok.Name()), "mysql")
+	//cmd.Stdout = os.Stdout
+	//cmd.Stderr = os.Stderr
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+
+	if err = cmd.Start(); err != nil {
+		return err
+	}
+
+	r, err := ioutil.ReadAll(stdout)
+	if err != nil {
+		return err
+	}
+
+	if err = cmd.Wait(); err != nil {
+		return err
+	}
+
+	_, err = f.Write(r)
+	if err != nil {
+		return err
+	}
+
+	defer stdout.Close()
+
+	return nil
+}
+
 func main() {
 
 	files, err := ioutil.ReadDir("bok")
@@ -113,8 +152,13 @@ func main() {
 	for _, file := range files {
 		SQLFile, err := dump(file)
 		if err != nil {
-			log.Fatal(err)
-
+			//log.Fatal(err)
+			cmd := exec.Command("rm", SQLFile)
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				log.Println(err)
+			}
+			log.Printf("Failed following file: %s - %v", file.Name(), err)
 		}
 		fmt.Printf("Completed SQL file: %v\n", SQLFile)
 
