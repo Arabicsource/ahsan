@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"gopkg.in/olivere/elastic.v3"
+
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -362,6 +364,14 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 		defer f.Close()
 	}
 
+	if *indexDB == true {
+		es, err := elastic.NewClient()
+		if err != nil {
+			log.Println(err)
+			return pages, err
+		}
+	}
+
 	for rows.Next() {
 
 		var (
@@ -438,6 +448,24 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 				log.Println(err)
 				return pages, err
 			}
+		}
+
+		if *indexDB == true {
+			// index each page
+			r, err := es.Index.BodyJson(jsonByte).Do()
+			if err != nil {
+				log.Println(err)
+				return pages, err
+			}
+
+			resp, err := json.Marshal(r)
+			if err != nil {
+				log.Println(err)
+				return pages, err
+			}
+
+			fmt.Println(resp)
+
 		}
 	}
 
