@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"gopkg.in/olivere/elastic.v3"
@@ -322,6 +323,7 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 
 		page Page
 		f    *os.File
+		es   *elastic.Client
 	)
 
 	var trim string
@@ -365,12 +367,17 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 	}
 
 	if *indexDB == true {
-		es, err := elastic.NewClient()
+		es, err = elastic.NewClient(
+			elastic.SetSniff(false),
+			elastic.SetURL("http://127.0.0.1:9200"),
+		)
 		if err != nil {
 			log.Println(err)
 			return pages, err
 		}
 	}
+
+	count := 0
 
 	for rows.Next() {
 
@@ -451,8 +458,9 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 		}
 
 		if *indexDB == true {
+
 			// index each page
-			r, err := es.Index.BodyJson(jsonByte).Do()
+			r, err := es.Index().Pretty(true).OpType("create").Index("maktabah").Type("pages").Id(newid + "-" + strconv.Itoa(count)).BodyJson(page).Do()
 			if err != nil {
 				log.Println(err)
 				return pages, err
@@ -464,9 +472,11 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 				return pages, err
 			}
 
-			fmt.Println(resp)
+			fmt.Println(string(resp))
 
 		}
+
+		count++
 	}
 
 	return pages, nil
