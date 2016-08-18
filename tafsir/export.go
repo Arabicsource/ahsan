@@ -30,12 +30,12 @@ type Book struct {
 }
 
 type Page struct {
-	PageId     string    `json: "page_id"`
-	PageBody   string    `json: "page_body"`
-	Volume     string    `json: "volume"`
-	PageNumber string    `json: "page_number"`
-	Chapters   []Chapter `json: "chapters"`
-	Book       Book      `json: "book"`
+	PageId     string  `json: "page_id"`
+	PageBody   string  `json: "page_body"`
+	Volume     string  `json: "volume"`
+	PageNumber string  `json: "page_number"`
+	Chapter    Chapter `json: "chapter"`
+	Book       Book    `json: "book"`
 }
 
 type Chapter struct {
@@ -212,7 +212,7 @@ func getBook(db *sql.DB, id string) (Book, error) {
 	return book, nil
 }
 
-func getChapters(db *sql.DB, id string) ([]Chapter, error) {
+func getChapter(db *sql.DB, id, pageid string) (Chapter, error) {
 
 	var (
 		HeadingValue      driver.Value
@@ -220,7 +220,7 @@ func getChapters(db *sql.DB, id string) ([]Chapter, error) {
 		SubLevelValue     driver.Value
 		PageIdValue       driver.Value
 
-		chapters []Chapter
+		chapter Chapter
 	)
 
 	var trim string
@@ -233,10 +233,10 @@ func getChapters(db *sql.DB, id string) ([]Chapter, error) {
 
 	id = strings.TrimPrefix(id, trim)
 
-	rows, err := db.Query("SELECT tit, lvl, sub, id from t" + id)
+	rows, err := db.Query("SELECT tit, lvl, sub, id FROM t" + id + " WHERE id <= '" + pageid + "' ORDER BY id DESC LIMIT 1")
 	if err != nil {
 		log.Println(err)
-		return chapters, err
+		return chapter, err
 	}
 
 	defer rows.Close()
@@ -252,14 +252,14 @@ func getChapters(db *sql.DB, id string) ([]Chapter, error) {
 
 		if err := rows.Scan(&heading, &headinglevel, &sublevel, &pageid); err != nil {
 			log.Println(err)
-			return chapters, err
+			return chapter, err
 		}
 
 		if heading.Valid {
 			HeadingValue, err = heading.Value()
 			if err != nil {
 				log.Println(err)
-				return chapters, err
+				return chapter, err
 			}
 		} else {
 			HeadingValue = "null"
@@ -269,7 +269,7 @@ func getChapters(db *sql.DB, id string) ([]Chapter, error) {
 			HeadingLevelValue, err = headinglevel.Value()
 			if err != nil {
 				log.Println(err)
-				return chapters, err
+				return chapter, err
 			}
 		} else {
 			HeadingLevelValue = "null"
@@ -279,7 +279,7 @@ func getChapters(db *sql.DB, id string) ([]Chapter, error) {
 			SubLevelValue, err = sublevel.Value()
 			if err != nil {
 				log.Println(err)
-				return chapters, err
+				return chapter, err
 			}
 		} else {
 			SubLevelValue = "null"
@@ -289,23 +289,23 @@ func getChapters(db *sql.DB, id string) ([]Chapter, error) {
 			PageIdValue, err = pageid.Value()
 			if err != nil {
 				log.Println(err)
-				return chapters, err
+				return chapter, err
 			}
 		} else {
 			PageIdValue = "null"
 		}
 
-		chapters = append(chapters, Chapter{
+		chapter = Chapter{
 
 			Heading:      HeadingValue.(string),
 			HeadingLevel: HeadingLevelValue.(string),
 			SubLevel:     SubLevelValue.(string),
 			PageId:       PageIdValue.(string),
-		})
+		}
 
 	}
 
-	return chapters, nil
+	return chapter, nil
 
 }
 
@@ -317,9 +317,9 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 		VolumeValue     driver.Value
 		PageNumberValue driver.Value
 
-		book     Book
-		pages    []Page
-		chapters []Chapter
+		book    Book
+		pages   []Page
+		chapter Chapter
 
 		page Page
 		f    *os.File
@@ -347,12 +347,6 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 	book, err = getBook(db, id)
 	if err != nil {
 
-		log.Println(err)
-		return pages, err
-	}
-
-	chapters, err = getChapters(db, id)
-	if err != nil {
 		log.Println(err)
 		return pages, err
 	}
@@ -437,11 +431,17 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 			PageBody:   PageBodyValue.(string),
 			Volume:     VolumeValue.(string),
 			PageNumber: PageNumberValue.(string),
-			Chapters:   chapters,
+			Chapter:    chapter,
 			Book:       book,
 		}
 
 		pages := append(pages, page)
+
+		chapter, err = getChapter(db, id, page.PageNumber)
+		if err != nil {
+			log.Println(err)
+			return pages, err
+		}
 
 		jsonByte, err := json.Marshal(page)
 		if err != nil {
@@ -460,7 +460,14 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 		if *indexDB == true {
 
 			// index each page
-			r, err := es.Index().Pretty(true).OpType("create").Index("maktabah").Type("pages").Id(newid + "-" + strconv.Itoa(count)).BodyJson(page).Do()
+			r, err := es.Index().Pretty(true).
+				OpType("create").
+				Index("maktabah").
+				Type("pages").
+				Id(newid + "-" + strconv.Itoa(count)).
+				BodyJson(page).
+				Do()
+
 			if err != nil {
 				log.Println(err)
 				return pages, err
