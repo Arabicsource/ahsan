@@ -59,6 +59,7 @@ var (
 )
 
 func init() {
+	// parse the flags set above
 	flag.Parse()
 }
 
