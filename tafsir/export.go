@@ -4,12 +4,9 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
-	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -18,52 +15,37 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+// Book ...
 type Book struct {
-	BookId    string `json: "book_id"`
-	BookTitle string `json: "book_title"`
-	Info      string `json: "info"`
-	BookInfo  string `json: "book_info"`
-	Author    string `json: "author"`
-	AuthorBio string `json: "author_bio"`
-	Category  string `json: "category"`
-	Died      string `json: "died"`
+	BookID    string `json:"book_id"`
+	BookTitle string `json:"book_title"`
+	Info      string `json:"info"`
+	BookInfo  string `json:"book_info"`
+	Author    string `json:"author"`
+	AuthorBio string `json:"author_bio"`
+	Category  string `json:"category"`
+	Died      string `json:"died"`
 }
 
+// Page ...
 type Page struct {
-	PageId     string  `json: "page_id"`
-	PageBody   string  `json: "page_body"`
-	Volume     string  `json: "volume"`
-	PageNumber string  `json: "page_number"`
-	Chapter    Chapter `json: "chapter"`
-	Book       Book    `json: "book"`
+	PageID     string  `json:"page_id"`
+	PageBody   string  `json:"page_body"`
+	Volume     string  `json:"volume"`
+	PageNumber string  `json:"page_number"`
+	Chapter    Chapter `json:"chapter"`
+	Book       Book    `json:"book"`
 }
 
+// Chapter ...
 type Chapter struct {
-	Heading      string `json: "heading"`
-	HeadingLevel string `json: "heading_level"`
-	SubLevel     string `json: "sub_level"`
-	PageId       string `json: "page_id"`
+	Heading      string `json:"heading"`
+	HeadingLevel string `json:"heading_level"`
+	SubLevel     string `json:"sub_level"`
+	PageID       string `json:"page_id"`
 }
 
-const help = `
- Please use one of the following arguments:
-
- -s		Export data to JSON file in json directory that will be created
- -i		Index data into ElasticSearch
-
- `
-
-var (
-	saveJson = flag.Bool("s", false, "Wishing to save data to json")
-	indexDB  = flag.Bool("i", false, "Indexing data to Elasticsearch")
-)
-
-func init() {
-	// parse the flags set above
-	flag.Parse()
-}
-
-func index(db *sql.DB, id string) bool {
+func index(db *sql.DB, id string, c chan string) bool {
 	_, err := getPages(db, id)
 	if err != nil {
 		log.Println(err)
@@ -73,13 +55,14 @@ func index(db *sql.DB, id string) bool {
 	// marshall into json and append to it also the
 	// bulk index meta data
 
+	c <- fmt.Sprintf("\n[%s] \t -  ===========> \t completed\n", id)
 	return true
 }
 
 func getBook(db *sql.DB, id string) (Book, error) {
 
 	var (
-		BookIdValue    driver.Value
+		BookIDValue    driver.Value
 		BookTitleValue driver.Value
 		InfoValue      driver.Value
 		BookInfoValue  driver.Value
@@ -118,13 +101,14 @@ func getBook(db *sql.DB, id string) (Book, error) {
 		}
 
 		if bookid.Valid {
-			BookIdValue, err = bookid.Value()
+			BookIDValue, err = bookid.Value()
 			if err != nil {
 				log.Println(err)
 				return book, err
 			}
+
 		} else {
-			BookIdValue = "null"
+			BookIDValue = "null"
 		}
 
 		if booktitle.Valid {
@@ -198,7 +182,7 @@ func getBook(db *sql.DB, id string) (Book, error) {
 		}
 
 		book = Book{
-			BookId:    BookIdValue.(string),
+			BookID:    BookIDValue.(string),
 			BookTitle: BookTitleValue.(string),
 			Info:      InfoValue.(string),
 			BookInfo:  BookInfoValue.(string),
@@ -219,7 +203,7 @@ func getChapter(db *sql.DB, id, pageid string) (Chapter, error) {
 		HeadingValue      driver.Value
 		HeadingLevelValue driver.Value
 		SubLevelValue     driver.Value
-		PageIdValue       driver.Value
+		PageIDValue       driver.Value
 
 		chapter Chapter
 	)
@@ -287,13 +271,13 @@ func getChapter(db *sql.DB, id, pageid string) (Chapter, error) {
 		}
 
 		if pageid.Valid {
-			PageIdValue, err = pageid.Value()
+			PageIDValue, err = pageid.Value()
 			if err != nil {
 				log.Println(err)
 				return chapter, err
 			}
 		} else {
-			PageIdValue = "null"
+			PageIDValue = "null"
 		}
 
 		chapter = Chapter{
@@ -301,7 +285,7 @@ func getChapter(db *sql.DB, id, pageid string) (Chapter, error) {
 			Heading:      HeadingValue.(string),
 			HeadingLevel: HeadingLevelValue.(string),
 			SubLevel:     SubLevelValue.(string),
-			PageId:       PageIdValue.(string),
+			PageID:       PageIDValue.(string),
 		}
 
 	}
@@ -313,7 +297,7 @@ func getChapter(db *sql.DB, id, pageid string) (Chapter, error) {
 func getPages(db *sql.DB, id string) ([]Page, error) {
 
 	var (
-		PageIdValue     driver.Value
+		PageIDValue     driver.Value
 		PageBodyValue   driver.Value
 		VolumeValue     driver.Value
 		PageNumberValue driver.Value
@@ -352,7 +336,7 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 		return pages, err
 	}
 
-	if *saveJson == true {
+	if *saveJSON == true {
 		f, err = os.Create("json/" + newid + ".json")
 		if err != nil {
 			return pages, err
@@ -364,7 +348,7 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 	if *indexDB == true {
 		es, err = elastic.NewClient(
 			elastic.SetSniff(false),
-			elastic.SetURL("http://127.0.0.1:9200"),
+			elastic.SetURL("http://localhost:32769"),
 		)
 		if err != nil {
 			log.Println(err)
@@ -388,13 +372,13 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 		}
 
 		if pageid.Valid {
-			PageIdValue, err = pageid.Value()
+			PageIDValue, err = pageid.Value()
 			if err != nil {
 				log.Println(err)
 				return pages, err
 			}
 		} else {
-			PageIdValue = "null"
+			PageIDValue = "null"
 		}
 
 		if pagebody.Valid {
@@ -428,7 +412,7 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 		}
 
 		page = Page{
-			PageId:     PageIdValue.(string),
+			PageID:     PageIDValue.(string),
 			PageBody:   PageBodyValue.(string),
 			Volume:     VolumeValue.(string),
 			PageNumber: PageNumberValue.(string),
@@ -444,13 +428,14 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 			return pages, err
 		}
 
-		jsonByte, err := json.Marshal(page)
-		if err != nil {
-			log.Println(err)
-			return pages, err
-		}
+		if *saveJSON == true {
 
-		if *saveJson == true {
+			jsonByte, err := json.Marshal(page)
+			if err != nil {
+				log.Println(err)
+				return pages, err
+			}
+
 			_, err = f.Write([]byte(fmt.Sprintf("%s\n", string(jsonByte))))
 			if err != nil {
 				log.Println(err)
@@ -461,7 +446,7 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 		if *indexDB == true {
 
 			// index each page
-			r, err := es.Index().Pretty(true).
+			_, err := es.Index().Pretty(true).
 				OpType("create").
 				Index("maktabah").
 				Type("pages").
@@ -473,64 +458,10 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 				log.Println(err)
 				return pages, err
 			}
-
-			resp, err := json.Marshal(r)
-			if err != nil {
-				log.Println(err)
-				return pages, err
-			}
-
-			fmt.Println(string(resp))
-
 		}
 
 		count++
 	}
 
 	return pages, nil
-}
-
-func main() {
-
-	if *saveJson == false && *indexDB == false {
-		fmt.Println(help)
-		return
-	}
-
-	err := os.Setenv("MDB_JET3_CHARSET", "cp1256")
-	if err != nil {
-		return
-	}
-
-	files, err := ioutil.ReadDir("db")
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	if *saveJson == true {
-		err = os.MkdirAll("json", 0755)
-		if err != nil {
-			return
-		}
-	}
-
-	for i, file := range files {
-
-		db, err := sql.Open("sqlite3", filepath.Join("db", file.Name()))
-		if err != nil {
-			log.Println(err)
-		}
-
-		id := strings.Split(file.Name(), ".")
-
-		ok := index(db, id[0])
-		if !ok {
-			log.Println("Failed index")
-		}
-
-		db.Close()
-		fmt.Printf("\n[%v] \t -  ===========> \t completed \t %s", i, file.Name())
-	}
-
 }

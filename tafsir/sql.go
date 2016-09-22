@@ -1,9 +1,7 @@
 package main
 
 import (
-	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -140,28 +138,4 @@ func dumpSchema(f *os.File, bok os.FileInfo) error {
 	defer stdout.Close()
 
 	return nil
-}
-
-func main() {
-
-	files, err := ioutil.ReadDir("bok")
-	if err != nil {
-		log.Println(err)
-	}
-
-	for _, file := range files {
-		SQLFile, err := dump(file)
-		if err != nil {
-			//log.Fatal(err)
-			cmd := exec.Command("rm", SQLFile)
-			cmd.Stderr = os.Stderr
-			if err := cmd.Run(); err != nil {
-				log.Println(err)
-			}
-			log.Printf("Failed following file: %s - %v", file.Name(), err)
-		}
-		fmt.Printf("Completed SQL file: %v\n", SQLFile)
-
-	}
-
 }

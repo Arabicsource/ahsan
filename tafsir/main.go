@@ -1,375 +1,201 @@
 package main
 
 import (
+	"database/sql"
+	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
-
-	"github.com/nwaples/rardecode"
-	"github.com/ttacon/chalk"
 )
 
-var start = time.Now()
-var urlChan chan string
+var (
+	start           = time.Now()
+	urlChan         chan string
+	allowSQLDump    = flag.Bool("-sql", false, "Dump SQL into db directory")
+	allowDownload   = flag.Bool("-download", false, "Download files into download directory")
+	allowRARExtract = flag.Bool("-unrar", false, "Extract Rar files into bok directory")
+	saveJSON        = flag.Bool("-save-json", false, "Wishing to save data to json")
+	indexDB         = flag.Bool("-index", false, "Indexing data to Elasticsearch")
+)
 
-type Crawler struct{}
-
-// run is the starting point
-func (c *Crawler) run() chan string {
-	urlChan = make(chan string)
-
-	for {
-
-		// get tafsir category
-		cats := []string{"/index.php/category/127"}
-
-		// loop through each category page, and launch a goroutine for each
-		for i, cat := range cats {
-
-			go func(cat string, i int, urlChan chan string) {
-				// fmt.Println("http://www.shamela.ws" + url)
-
-				// get slice of urls of books (links to pages of individual books)
-				books, err := c.crawlCat(cat, urlChan)
-				if err != nil {
-
-					log.Println(err)
-					return
-				}
-				for _, book := range books {
-					urlChan <- fmt.Sprintf("http://www.shamela.ws%s", book)
-				}
-			}(cat, i, urlChan)
-
-		}
-
-		return urlChan
-	}
+func init() {
+	flag.Parse()
 }
+func main() {
+	if *allowDownload == true {
+		fmt.Println(`Scraping http://www.shamela.ws/ for URL links to shamela books in Tafsir Category.`)
 
-// crawlCat crawls the individual category page and retrieves the urls of books  to
-// the individual books' page.
-func (c *Crawler) crawlCat(cat string, urlChan chan string) (books []string, err error) {
-	resp, err := getBody("http://www.shamela.ws" + cat)
-	if err != nil {
-		return nil, err
-	}
+		c := new(Crawler)
+		urlChan := c.run()
+		defer close(urlChan)
+		count := 1
 
-	respbody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	// regex for book url
-	re := regexp.MustCompile(`\/index.php\/book\/\d+`)
-	books = re.FindAllString(string(respbody), -1)
-
-	// regex for last page url
-	paginationUrl := regexp.MustCompile(`\/index.php\/category\/\d+\/page-\d`)
-	pagination := paginationUrl.FindAllString(string(respbody), -1)
-	if len(pagination) == 0 {
-		return books, nil
-	}
-
-	maxPages, err := getLastPage(pagination[len(pagination)-1])
-	if err != nil {
-		log.Println(err)
-	}
-
-	fmt.Println("Max number of pages found for this category are: ", maxPages)
-
-	// The default category page is the first page for the category page
-	// so long the number is less or equals to the maxPages for that category
-	// execute a goroutine, and process those pages concurrently.
-	for i := 1; i <= maxPages; i++ {
-
-		fmt.Printf("Crawling through page number %d\n", i)
-
-		// goroutine scraping the page number n for a particular category
-		go getCatPage(i, cat, urlChan)
-
-	}
-
-	return books, nil
-}
-
-// getBody creates a http client and makes a Get request to the given url,
-// and returns a pointer to a http.Response struct
-func getBody(url string) (*http.Response, error) {
-	client := new(http.Client)
-
-	resp, err := client.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	return resp, nil
-}
-
-// getLastPage returns the last page number if it can find it,
-// or returns an error.
-func getLastPage(url string) (int, error) {
-	last := strings.Split(url, "-")
-	n := last[len(last)-1]
-	return strconv.Atoi(n)
-}
-
-func getCatPage(i int, cat string, urlChan chan string) {
-
-	resp, err := getBody("http://www.shamela.ws" + cat + "/page-" + strconv.Itoa(i))
-	if err != nil {
-		log.Println(err)
-	}
-
-	respbody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Println(err)
-	}
-
-	re := regexp.MustCompile(`\/index.php\/book\/\d+`)
-	pBooks := re.FindAllString(string(respbody), -1)
-
-	for _, book := range pBooks {
-
-		urlChan <- fmt.Sprintf("http://www.shamela.ws%s", book)
-	}
-}
-
-func download(count chan string, url string) {
-
-	resp, err := getBody(url)
-	if err != nil {
-		log.Println(err)
-	}
-
-	respbody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Println(err)
-	}
-	resp.Body.Close()
-
-	re := regexp.MustCompile(`http://shamela.ws/books/\d+/\d+.rar`)
-	book := re.FindAllString(string(respbody), -1)
-	if book == nil {
-		fmt.Println("no match!")
-		return
-	}
-
-	// get the filename so to replicate it locally when we create it
-	bookName := strings.SplitAfter(string(book[len(book)-1]), "/")
-	fileName := bookName[len(bookName)-1]
-
-	// now we have the link to the rar file (book) and need to download it.
-	// create downloads directory if it doesn't exist
-	if _, err = os.Stat("downloads"); os.IsNotExist(err) {
-		err = os.Mkdir("downloads", 0700)
+		f, err := os.Create("urls.txt")
 		if err != nil {
-			log.Println("could not create the directory downloads, with err: ", err)
-			return
-		}
-	}
-
-	var f *os.File
-
-	// create the file if it does not exist
-	if _, err = os.Stat("downloads/" + string(fileName)); os.IsNotExist(err) {
-		f, err = os.Create("downloads/" + fileName)
-		if err != nil {
-			log.Println("could not create file, with err: ", err)
-			return
+			log.Println(err)
 		}
 		defer f.Close()
-	}
 
-	r, err := http.Get(book[len(book)-1])
+		var books []string
 
-	if err != nil {
-		log.Println("could not download the book, with err : ", err)
-		return
-	}
+	Loop:
+		for {
+			select {
+			case url := <-urlChan:
 
-	n, err := io.Copy(f, r.Body)
-	if err != nil {
-		log.Println("Could not copy the content to the newly created file, with err: ", err)
-		return
-	}
+				if !contains(books, url) {
 
-	r.Body.Close()
+					fmt.Printf("[%d] - %v \n", count, url)
 
-	count <- fmt.Sprintf(fmt.Sprintf("Downloading %v \t ....", book[len(book)-1]) + chalk.Bold.TextStyle(fmt.Sprintf("\t%v kb  Downloaded. Done!\n", n/int64(1000))))
-}
+					_, err := f.WriteString(fmt.Sprintf("%v\n", url))
 
-func contains(urlSlice []string, val string) bool {
-	for _, url := range urlSlice {
-		if url == val {
-			return true
-		}
-	}
-	return false
-}
+					if err != nil {
+						panic(err)
+					}
 
-// extract a rar file and save content into a bok directory
-func extract(f string) (err error) {
-
-	err = os.Setenv("MDB_JET3_CHARSET", "cp1256")
-	if err != nil {
-		return err
-	}
-
-	if _, err := os.Stat("bok"); os.IsNotExist(err) {
-		if err := os.MkdirAll("bok", 0755); err != nil {
-			log.Println(err)
-			return err
-		}
-	} else if err != nil {
-		return err
-	}
-
-	//	cmd := exec.Command("unrar", "e", "../downloads/"+f)
-	//	cmd.Dir = "bok"
-	//	cmd.Stdout = os.Stdout
-	//	cmd.Stderr = os.Stderr
-	//	if err := cmd.Run(); err != nil {
-	//		log.Println(err)
-	//		return err
-	//	}
-
-	// id of the book
-	id := strings.Split(f, ".")[0]
-
-	nfn := id + ".bok"
-
-	rarfile, err := os.Open(filepath.Join("downloads", f))
-	if err != nil {
-		return err
-	}
-
-	rdr, err := rardecode.NewReader(rarfile, "")
-	if err != nil {
-		return err
-	}
-
-	nf, err := rdr.Next()
-	if err != nil {
-		return err
-	}
-
-	ps := make([]byte, nf.UnPackedSize)
-	_, err = rdr.Read(ps)
-	if err != nil {
-		return err
-	}
-
-	//fmt.Println(rdr)
-
-	newbok, err := os.Create(filepath.Join("bok", nfn))
-	defer newbok.Close()
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("%v being extracted ....", nfn)
-	_, err = io.CopyBuffer(newbok, rdr, nil)
-	if err != nil {
-		newbok.Close()
-		fmt.Printf("error!")
-		rm := exec.Command("rm", nfn)
-		rm.Stderr = os.Stderr
-		if err = rm.Run(); err != nil {
-			fmt.Printf(" - Could not remove file [" + nfn + "]\n")
-		}
-
-		return err
-	}
-	fmt.Printf("done!\n")
-
-	return nil
-}
-
-func main() {
-
-	fmt.Println(`Scraping http://www.shamela.ws/ for URL links to shamela books in Tafsir Category.`)
-
-	c := new(Crawler)
-	urlChan := c.run()
-	defer close(urlChan)
-	count := 1
-
-	f, err := os.Create("urls.txt")
-	if err != nil {
-		log.Println(err)
-	}
-	defer f.Close()
-
-	var books []string
-
-Loop:
-	for {
-		select {
-		case url := <-urlChan:
-
-			if !contains(books, url) {
-
-				fmt.Printf("[%d] - %v \n", count, url)
-
-				_, err := f.WriteString(fmt.Sprintf("%v\n", url))
-
-				if err != nil {
-					panic(err)
+					books = append(books, fmt.Sprintf("%v", url))
+					count++
 				}
 
-				books = append(books, fmt.Sprintf("%v", url))
-				count++
+			case <-time.After(time.Millisecond * 5000):
+				log.Println("Exiting")
+				log.Println(time.Since(start))
+				break Loop
+
+			}
+		}
+
+		fmt.Println("Total books found: ", count-1)
+		fmt.Println(fmt.Sprintf("\n\nStarting the downloading of the books:\n\n"))
+
+		ct := make(chan string)
+		for _, book := range books {
+			go func(ct chan string, book string) {
+				download(ct, book)
+			}(ct, book)
+		}
+	Loop2:
+		for {
+			select {
+			case str := <-ct:
+
+				fmt.Println(str)
+
+			case <-time.After(time.Minute * 1):
+				log.Println("Exiting")
+				break Loop2
+
+			}
+		}
+	} else {
+		fmt.Println("Can't do anything!")
+		return
+	}
+
+	if *allowRARExtract == true {
+		files, err := ioutil.ReadDir("downloads")
+		if err != nil {
+			log.Println(err)
+		}
+
+		for _, file := range files {
+			if err = extract(file.Name()); err != nil {
+				log.Println(err)
+				continue
+			}
+		}
+	}
+
+	if *allowSQLDump == true {
+		files, err := ioutil.ReadDir("bok")
+		if err != nil {
+			log.Println(err)
+		}
+
+		for _, file := range files {
+			SQLFile, err := dump(file)
+			if err != nil {
+				//log.Fatal(err)
+				cmd := exec.Command("rm", SQLFile)
+				cmd.Stderr = os.Stderr
+				if err := cmd.Run(); err != nil {
+					log.Println(err)
+				}
+				log.Printf("Failed following file: %s - %v", file.Name(), err)
+			}
+			fmt.Printf("Completed SQL file: %v\n", SQLFile)
+
+		}
+
+	}
+
+	// Check the --save-json and --index flags
+	if *saveJSON == true || *indexDB == true {
+		c := make(chan string)
+
+		if *saveJSON == false && *indexDB == false {
+			return
+		}
+
+		err := os.Setenv("MDB_JET3_CHARSET", "cp1256")
+		if err != nil {
+			return
+		}
+
+		files, err := ioutil.ReadDir("db")
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		if *saveJSON == true {
+			err = os.MkdirAll("json", 0755)
+			if err != nil {
+				return
+			}
+		}
+
+		for _, file := range files {
+
+			go func(file os.FileInfo, c chan string) {
+
+				db, err := sql.Open("sqlite3", filepath.Join("db", file.Name()))
+				if err != nil {
+					log.Println(err)
+				}
+
+				id := strings.Split(file.Name(), ".")
+
+				ok := index(db, id[0], c)
+				if !ok {
+					log.Println("Failed indexing " + file.Name())
+				}
+
+				db.Close()
+
+			}(file, c)
+
+		}
+
+		for {
+
+			select {
+
+			case msg := <-c:
+				fmt.Println(msg)
+
+			case <-time.After(10 * time.Minute):
+				return
+
 			}
 
-		case <-time.After(time.Millisecond * 5000):
-			log.Println("Exiting")
-			log.Println(time.Since(start))
-			break Loop
-
 		}
+
 	}
 
-	fmt.Println("Total books found: ", count-1)
-	fmt.Println(fmt.Sprintf("\n\nStarting the downloading of the books:\n\n"))
-
-	ct := make(chan string)
-	for _, book := range books {
-		go func(ct chan string, book string) {
-			download(ct, book)
-		}(ct, book)
-	}
-
-Loop2:
-	for {
-		select {
-		case str := <-ct:
-
-			fmt.Println(str)
-
-		case <-time.After(time.Minute * 1):
-			log.Println("Exiting")
-			break Loop2
-
-		}
-	}
-
-	files, err := ioutil.ReadDir("downloads")
-	if err != nil {
-		log.Println(err)
-	}
-
-	for _, file := range files {
-		if err = extract(file.Name()); err != nil {
-			log.Println(err)
-			continue
-		}
-	}
 }

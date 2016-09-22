@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -81,19 +80,4 @@ func extract(f string) (err error) {
 	fmt.Printf("done!\n")
 
 	return nil
-}
-
-func main() {
-
-	files, err := ioutil.ReadDir("downloads")
-	if err != nil {
-		log.Println(err)
-	}
-
-	for _, file := range files {
-		if err = extract(file.Name()); err != nil {
-			log.Println(err)
-			continue
-		}
-	}
 }
