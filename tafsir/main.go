@@ -21,6 +21,7 @@ var (
 	allowRARExtract = flag.Bool("unrar", false, "Extract Rar files into bok directory")
 	saveJSON        = flag.Bool("save-json", false, "Wishing to save data to json")
 	indexDB         = flag.Bool("index", false, "Indexing data to Elasticsearch")
+	file            = flag.String("file", "", "path to file containing urls")
 )
 
 func main() {
@@ -194,6 +195,7 @@ By aboo shayba <shaybix> aboo.shayba@gmail.com
  unrar			Extract Rar files into bok directory")
  save-json		Wishing to save data to json")
  index			Indexing data to Elasticsearch")
+ file			Give file containing urls of files to download
 
 For any support please contact the author at aboo.shayba@gmail.com		
 		`)
