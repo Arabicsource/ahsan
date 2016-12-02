@@ -16,17 +16,16 @@ import (
 var (
 	start           = time.Now()
 	urlChan         chan string
-	allowSQLDump    = flag.Bool("-sql", false, "Dump SQL into db directory")
-	allowDownload   = flag.Bool("-download", false, "Download files into download directory")
-	allowRARExtract = flag.Bool("-unrar", false, "Extract Rar files into bok directory")
-	saveJSON        = flag.Bool("-save-json", false, "Wishing to save data to json")
-	indexDB         = flag.Bool("-index", false, "Indexing data to Elasticsearch")
+	allowSQLDump    = flag.Bool("sql", false, "Dump SQL into db directory")
+	allowDownload   = flag.Bool("download", false, "Download files into download directory")
+	allowRARExtract = flag.Bool("unrar", false, "Extract Rar files into bok directory")
+	saveJSON        = flag.Bool("save-json", false, "Wishing to save data to json")
+	indexDB         = flag.Bool("index", false, "Indexing data to Elasticsearch")
 )
 
-func init() {
-	flag.Parse()
-}
 func main() {
+	flag.Parse()
+
 	if *allowDownload == true {
 		fmt.Println(`Scraping http://www.shamela.ws/ for URL links to shamela books in Tafsir Category.`)
 
@@ -92,12 +91,7 @@ func main() {
 
 			}
 		}
-	} else {
-		fmt.Println("Can't do anything!")
-		return
-	}
-
-	if *allowRARExtract == true {
+	} else if *allowRARExtract == true {
 		files, err := ioutil.ReadDir("downloads")
 		if err != nil {
 			log.Println(err)
@@ -109,9 +103,7 @@ func main() {
 				continue
 			}
 		}
-	}
-
-	if *allowSQLDump == true {
+	} else if *allowSQLDump == true {
 		files, err := ioutil.ReadDir("bok")
 		if err != nil {
 			log.Println(err)
@@ -131,11 +123,8 @@ func main() {
 			fmt.Printf("Completed SQL file: %v\n", SQLFile)
 
 		}
-
-	}
-
-	// Check the --save-json and --index flags
-	if *saveJSON == true || *indexDB == true {
+		// Check the --save-json and --index flags
+	} else if *saveJSON == true || *indexDB == true {
 		c := make(chan string)
 
 		if *saveJSON == false && *indexDB == false {
@@ -196,6 +185,18 @@ func main() {
 
 		}
 
+	} else {
+		fmt.Println(`Maktabah-cli tool v0.1-alpha-rc1 <October 24, 2016>
+By aboo shayba <shaybix> aboo.shayba@gmail.com
+
+ sql			Dump SQL into db directory")
+ download		Download files into download directory")
+ unrar			Extract Rar files into bok directory")
+ save-json		Wishing to save data to json")
+ index			Indexing data to Elasticsearch")
+
+For any support please contact the author at aboo.shayba@gmail.com		
+		`)
 	}
 
 }

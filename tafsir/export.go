@@ -348,7 +348,7 @@ func getPages(db *sql.DB, id string) ([]Page, error) {
 	if *indexDB == true {
 		es, err = elastic.NewClient(
 			elastic.SetSniff(false),
-			elastic.SetURL("http://localhost:32769"),
+			elastic.SetURL("http://localhost:9200"),
 		)
 		if err != nil {
 			log.Println(err)
