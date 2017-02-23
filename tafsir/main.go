@@ -27,6 +27,11 @@ var (
 func main() {
 	flag.Parse()
 
+	if len(*file) > 0 {
+		fmt.Println("this is a test")
+		// TODO something
+	}
+
 	if *allowDownload == true {
 		fmt.Println(`Scraping http://www.shamela.ws/ for URL links to shamela books in Tafsir Category.`)
 
@@ -202,3 +207,5 @@ For any support please contact the author at aboo.shayba@gmail.com
 	}
 
 }
+
+// TODO
